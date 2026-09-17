@@ -43,12 +43,12 @@ public class BillingService {
      */
     @Transactional
     public List<InvoiceResponse> generateInvoices(int month, int year) {
-        List<Subscription> subs = subscriptionRepository.findAllActiveOrPaused();
-        List<InvoiceResponse> results = new ArrayList<>();
-
         YearMonth ym = YearMonth.of(year, month);
         LocalDate monthStart = ym.atDay(1);
         LocalDate monthEnd = ym.atEndOfMonth();
+
+        List<Subscription> subs = subscriptionRepository.findActiveInPeriod(monthStart, monthEnd);
+        List<InvoiceResponse> results = new ArrayList<>();
 
         for (Subscription sub : subs) {
             // Skip if invoice already exists

@@ -41,6 +41,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/clock", "/api/clock", "/outbox/**", "/outbox", "/api/outbox/**", "/api/outbox").permitAll()
+                .requestMatchers("/import", "/import-csv", "/api/customers/import", "/api/customers/import-csv").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 // All other API endpoints require authentication

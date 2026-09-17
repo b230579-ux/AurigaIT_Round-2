@@ -13,17 +13,35 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+
+import com.tiffin.dto.TransferRequest;
+import com.tiffin.entity.PausePeriod;
+import com.tiffin.entity.SubscriptionTransfer;
+import com.tiffin.repository.PausePeriodRepository;
+import com.tiffin.repository.SubscriptionTransferRepository;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final SubscriptionTransferRepository transferRepository;
+    private final PausePeriodRepository pauseRepository;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
-                               UserRepository userRepository) {
+                               UserRepository userRepository,
+                               SubscriptionTransferRepository transferRepository,
+                               PausePeriodRepository pauseRepository) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
+        this.transferRepository = transferRepository;
+        this.pauseRepository = pauseRepository;
     }
 
     public Subscription createSubscription(SubscriptionRequest request) {
@@ -87,6 +105,86 @@ public class SubscriptionService {
             return subscriptionRepository.findByStatus(status);
         }
         return subscriptionRepository.findAllActiveOrPaused();
+    }
+
+    @Transactional
+    public Map<String, Object> transferSubscription(Long subId, TransferRequest request) {
+        Subscription sourceSub = getSubscription(subId);
+        if (sourceSub.getStatus() == Subscription.Status.CANCELLED) {
+            throw new IllegalStateException("Cannot transfer a cancelled subscription");
+        }
+
+        LocalDate transferDate = (request != null && request.getTransferDate() != null)
+                ? request.getTransferDate() : LocalDate.now();
+
+        if (transferDate.isBefore(sourceSub.getStartDate())) {
+            throw new IllegalArgumentException("Transfer date (" + transferDate +
+                    ") cannot be before subscription start date (" + sourceSub.getStartDate() + ")");
+        }
+
+        User targetCustomer;
+        if (request != null && request.getTargetCustomerId() != null) {
+            targetCustomer = userRepository.findById(request.getTargetCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Target customer not found: " + request.getTargetCustomerId()));
+        } else if (request != null && request.getTargetPhone() != null && !request.getTargetPhone().isBlank()) {
+            targetCustomer = userRepository.findByPhone(request.getTargetPhone().trim())
+                    .orElseThrow(() -> new ResourceNotFoundException("Target customer with phone " + request.getTargetPhone() + " not found."));
+        } else {
+            throw new IllegalArgumentException("Target customer ID or phone is required for transfer");
+        }
+
+        if (targetCustomer.getId().equals(sourceSub.getCustomer().getId())) {
+            throw new IllegalArgumentException("Cannot transfer subscription to the same customer");
+        }
+
+        // Close source subscription on day before transferDate
+        LocalDate sourceEndDate = transferDate.isAfter(sourceSub.getStartDate()) ? transferDate.minusDays(1) : sourceSub.getStartDate();
+        sourceSub.setEndDate(sourceEndDate);
+        sourceSub.setStatus(Subscription.Status.CANCELLED);
+        subscriptionRepository.save(sourceSub);
+
+        // Close any active open pause on source subscription
+        Optional<PausePeriod> openPause = pauseRepository.findBySubscriptionIdAndResumeDateIsNull(sourceSub.getId());
+        if (openPause.isPresent()) {
+            PausePeriod p = openPause.get();
+            p.setResumeDate(transferDate);
+            pauseRepository.save(p);
+        }
+
+        // Create new subscription for target customer carrying over plan and price
+        Subscription newSub = new Subscription();
+        newSub.setCustomer(targetCustomer);
+        newSub.setPlanName(sourceSub.getPlanName());
+        newSub.setPlanPrice(sourceSub.getPlanPrice());
+        newSub.setStartDate(transferDate);
+        newSub.setStatus(Subscription.Status.ACTIVE);
+        subscriptionRepository.save(newSub);
+
+        // Record transfer
+        SubscriptionTransfer transfer = new SubscriptionTransfer(
+                sourceSub.getId(),
+                newSub.getId(),
+                sourceSub.getCustomer().getId(),
+                sourceSub.getCustomer().getName(),
+                targetCustomer.getId(),
+                targetCustomer.getName(),
+                transferDate,
+                (request != null && request.getReason() != null) ? request.getReason() : "Mid-cycle subscription transfer"
+        );
+        transferRepository.save(transfer);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("message", "Subscription successfully transferred from " + sourceSub.getCustomer().getName() + " to " + targetCustomer.getName());
+        res.put("transferId", transfer.getId());
+        res.put("transferDate", transferDate.toString());
+        res.put("originalSubscriptionId", sourceSub.getId());
+        res.put("newSubscriptionId", newSub.getId());
+        res.put("fromCustomer", sourceSub.getCustomer().getName());
+        res.put("toCustomer", targetCustomer.getName());
+        res.put("planName", newSub.getPlanName().name());
+        res.put("planPrice", newSub.getPlanPrice());
+
+        return res;
     }
 
     private BigDecimal getDefaultPrice(Subscription.PlanName plan) {

@@ -26,7 +26,7 @@ import { AuthService } from '../../services/auth.service';
             
             <div class="user-badge-wrapper">
               <span class="user-pill">
-                <span class="role-tag">{{ user.role === 'ROLE_OWNER' ? 'Owner' : 'Customer' }}</span>
+                <span class="role-tag">{{ (user.role === 'OWNER' || user.role === 'ROLE_OWNER') ? 'Owner' : 'Customer' }}</span>
                 <span class="user-name">{{ user.name }}</span>
               </span>
               <button class="btn btn-outline btn-sm" (click)="logout()">Sign Out</button>

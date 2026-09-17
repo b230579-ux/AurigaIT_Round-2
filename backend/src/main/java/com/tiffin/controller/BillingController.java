@@ -11,14 +11,34 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.tiffin.entity.User;
+import com.tiffin.exception.ResourceNotFoundException;
+import com.tiffin.repository.UserRepository;
+import java.security.Principal;
+
 @RestController
 @RequestMapping("/api/billing")
 public class BillingController {
 
     private final BillingService billingService;
+    private final UserRepository userRepository;
 
-    public BillingController(BillingService billingService) {
+    public BillingController(BillingService billingService, UserRepository userRepository) {
         this.billingService = billingService;
+        this.userRepository = userRepository;
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<Page<InvoiceResponse>> getMyInvoices(
+            Principal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        if (principal == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        User user = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + principal.getName()));
+        return ResponseEntity.ok(billingService.getInvoicesByCustomer(user.getId(), PageRequest.of(page, size, Sort.by("generatedAt").descending())));
     }
 
     @PostMapping("/generate")

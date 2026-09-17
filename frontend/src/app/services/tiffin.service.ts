@@ -82,4 +82,41 @@ export class TiffinService {
   getInvoicesByCustomer(customerId: number): Observable<any> {
     return this.http.get<any>(`${this.apiUrl}/billing/customer/${customerId}`);
   }
+
+  // Customer Portal Services
+  getAvailableTiffinServices(): Observable<User[]> {
+    return this.http.get<User[]>(`${this.apiUrl}/tiffin-services`);
+  }
+
+  getMySubscriptions(): Observable<Subscription[]> {
+    return this.http.get<Subscription[]>(`${this.apiUrl}/subscriptions/my`);
+  }
+
+  getMyInvoices(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/billing/my`);
+  }
+
+  // ── Twists: Clock & Outbox (Level 1) ──
+  tickClock(date?: string): Observable<any> {
+    const base = environment.apiUrl.replace(/\/api$/, '');
+    return this.http.post<any>(`${base}/clock`, date ? { date } : {});
+  }
+
+  getOutbox(date?: string): Observable<any[]> {
+    const base = environment.apiUrl.replace(/\/api$/, '');
+    let params = new HttpParams();
+    if (date) params = params.set('date', date);
+    return this.http.get<any[]>(`${base}/outbox`, { params });
+  }
+
+  // ── Twists: Subscription Transfer (Level 2) ──
+  transferSubscription(subId: number, payload: { targetPhone?: string; targetCustomerId?: number; transferDate?: string; reason?: string }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/subscriptions/${subId}/transfer`, payload);
+  }
+
+  // ── Twists: Messy Data Import (Level 3) ──
+  importCustomers(records: any[]): Observable<any> {
+    const base = environment.apiUrl.replace(/\/api$/, '');
+    return this.http.post<any>(`${base}/import`, records);
+  }
 }

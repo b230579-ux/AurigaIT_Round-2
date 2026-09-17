@@ -3,7 +3,7 @@ export interface User {
   name: string;
   email: string;
   phone: string;
-  role: 'ROLE_OWNER' | 'ROLE_CUSTOMER';
+  role: 'OWNER' | 'CUSTOMER' | 'ROLE_OWNER' | 'ROLE_CUSTOMER' | string;
 }
 
 export interface PausePeriod {

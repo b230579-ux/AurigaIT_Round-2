@@ -24,6 +24,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Query("SELECT s FROM Subscription s WHERE s.status IN ('ACTIVE', 'PAUSED')")
     List<Subscription> findAllActiveOrPaused();
 
+    @Query("SELECT s FROM Subscription s WHERE s.startDate <= :end AND (s.endDate IS NULL OR s.endDate >= :start)")
+    List<Subscription> findActiveInPeriod(@Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
+
     @Query("SELECT COUNT(s) FROM Subscription s WHERE s.status = :status")
     long countByStatus(@Param("status") Subscription.Status status);
 }
