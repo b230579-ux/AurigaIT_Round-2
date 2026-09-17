@@ -1,0 +1,18 @@
+# Build output
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# H2 database files
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+*.env

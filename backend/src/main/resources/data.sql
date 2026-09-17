@@ -1,0 +1,1 @@
+-- No SQL seed data needed — DataSeeder.java handles seeding at runtime
